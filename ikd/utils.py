@@ -90,39 +90,39 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
 
     cov_scaled = cov / variance
     if kernel == 'squared exponential':
-        pariwise_dist2 = -np.log(cov_scaled) * 2 * length_scale**2
+        pairwise_dist2 = -np.log(cov_scaled) * 2 * length_scale**2
     elif kernel == 'rational quadratic':
-        pariwise_dist2 = (cov_scaled**(-1/extra_kernel_hyperparam) - 1) * 2 * extra_kernel_hyperparam * length_scale**2
+        pairwise_dist2 = (cov_scaled**(-1/extra_kernel_hyperparam) - 1) * 2 * extra_kernel_hyperparam * length_scale**2
     elif kernel == 'gamma-exponential':
-        pariwise_dist2 = ((-np.log(cov_scaled))**(1/extra_kernel_hyperparam) * length_scale)**2
+        pairwise_dist2 = ((-np.log(cov_scaled))**(1/extra_kernel_hyperparam) * length_scale)**2
     elif kernel == 'matern':
         if extra_kernel_hyperparam == 0.5:
-            pariwise_dist2 = (-np.log(cov_scaled))**2
+            pairwise_dist2 = (-np.log(cov_scaled))**2
         elif extra_kernel_hyperparam == 1.5:
             n_points = cov.shape[0]
-            pariwise_dist2 = np.zeros((n_points, n_points))
+            pairwise_dist2 = np.zeros((n_points, n_points))
             for i in range(n_points):
                 for j in range(i + 1, n_points):
                     root_result = root_scalar(lambda x: (1 + x) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x * np.exp(-x))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
-                    pariwise_dist2[i, j] = root_result.root
-            pariwise_dist2 = (pariwise_dist2 * length_scale / np.sqrt(3))**2
-            pariwise_dist2 += np.triu(pariwise_dist2, k=1).T
+                    pairwise_dist2[i, j] = root_result.root
+            pairwise_dist2 = (pairwise_dist2 * length_scale / np.sqrt(3))**2
+            pairwise_dist2 += np.triu(pairwise_dist2, k=1).T
         elif extra_kernel_hyperparam == 2.5:
             n_points = cov.shape[0]
-            pariwise_dist2 = np.zeros((n_points, n_points))
+            pairwise_dist2 = np.zeros((n_points, n_points))
             for i in range(n_points):
                 for j in range(i + 1, n_points):
                     root_result = root_scalar(lambda x: (1 + x + x**2/3) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x / 3 * (1 + x) * np.exp(-x))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
-                    pariwise_dist2[i, j] = root_result.root
-            pariwise_dist2 = (pariwise_dist2 * length_scale / np.sqrt(5))**2
-            pariwise_dist2 += np.triu(pariwise_dist2, k=1).T
+                    pairwise_dist2[i, j] = root_result.root
+            pairwise_dist2 = (pairwise_dist2 * length_scale / np.sqrt(5))**2
+            pairwise_dist2 += np.triu(pairwise_dist2, k=1).T
         else:
             n_points = cov.shape[0]
-            pariwise_dist2 = np.zeros((n_points, n_points))
+            pairwise_dist2 = np.zeros((n_points, n_points))
             # matern = Matern(length_scale=1, nu=nu)
             def matern(x):
                 if x == 0:
@@ -140,12 +140,12 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
                     root_result = root_scalar(lambda x: matern(x) - cov_scaled[i, j], x0=1, bracket=(0, upperbound))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
-                    pariwise_dist2[i, j] = root_result.root
-            pariwise_dist2 = pariwise_dist2**2                    
-            pariwise_dist2 += np.triu(pariwise_dist2, k=1).T
+                    pairwise_dist2[i, j] = root_result.root
+            pairwise_dist2 = pairwise_dist2**2                    
+            pairwise_dist2 += np.triu(pairwise_dist2, k=1).T
     else:
         raise ValueError("No such kernel")
-    return pariwise_dist2
+    return pairwise_dist2
 
 
 def align(z_true: np.array, z_pred: np.array) -> np.array:
