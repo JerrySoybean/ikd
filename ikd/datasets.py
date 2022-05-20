@@ -308,12 +308,12 @@ def gaussian_bump_generator(z_true: np.array, n_grids_per_dim: int, n_centers: i
         Observation data.
     """
 
-    d = z_true.shape[1]
-    if n_grids_per_dim**d < n_centers:
+    d_latent = z_true.shape[1]
+    if n_grids_per_dim**d_latent < n_centers:
         raise ValueError("Number of Gaussian bump centers exceeds the number of its candidate.")
     rng = np.random.default_rng(seed=seed)
     step = 2 * area / (n_grids_per_dim - 1)
-    grid = np.mgrid[tuple(slice(-area, area + step, step) for _ in range(d))]
+    grid = np.mgrid[tuple(slice(-area, area + step, step) for _ in range(d_latent))]
     bump_centers = np.array(list(map(np.ravel, grid))).T
     idx = rng.permutation(bump_centers.shape[0])[:n_centers]
     bump_centers = bump_centers[idx]

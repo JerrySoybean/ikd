@@ -255,8 +255,8 @@ def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_
     """
 
     # method 1: At each step, select two with max interset to combine
-    n = cov_samp_th.shape[0]
-    clique_onehot_mat = np.zeros((len(clique_list), n))
+    n_points = cov_samp_th.shape[0]
+    clique_onehot_mat = np.zeros((len(clique_list), n_points))
     for i in range(len(clique_list)):
         clique_onehot_mat[i, clique_list[i]] = 1
     inter_mat = clique_onehot_mat @ clique_onehot_mat.T
@@ -269,7 +269,7 @@ def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_
         eig_i = eig_list[i]
         eig_j = eig_list.pop(j)
         clique, eig = combine_two_eig(clique_i, clique_j, eig_i, eig_j, cov_samp_th, ikd_clique, merge_method=merge_method)
-        if len(clique) == n: # early stop
+        if len(clique) == n_points: # early stop
             break
         clique_onehot_mat = np.delete(clique_onehot_mat, j, axis=0)
         clique_onehot_mat[i, clique] = 1
@@ -282,7 +282,7 @@ def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_
     
     # # method 2: Continuously select a new clique to combine to the current main clique
     # length_list = [len(clique) for clique in clique_list]
-    # record = np.zeros(n)
+    # record = np.zeros(n_points)
     # start_idx = np.argmax(length_list)
     # clique = clique_list.pop(start_idx)
     # record[clique] = 1

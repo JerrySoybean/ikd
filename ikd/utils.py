@@ -99,10 +99,10 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
         if extra_kernel_hyperparam == 0.5:
             pariwise_dist2 = (-np.log(cov_scaled))**2
         elif extra_kernel_hyperparam == 1.5:
-            n = cov.shape[0]
-            pariwise_dist2 = np.zeros((n, n))
-            for i in range(n):
-                for j in range(i + 1, n):
+            n_points = cov.shape[0]
+            pariwise_dist2 = np.zeros((n_points, n_points))
+            for i in range(n_points):
+                for j in range(i + 1, n_points):
                     root_result = root_scalar(lambda x: (1 + x) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x * np.exp(-x))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
@@ -110,10 +110,10 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
             pariwise_dist2 = (pariwise_dist2 * length_scale / np.sqrt(3))**2
             pariwise_dist2 += np.triu(pariwise_dist2, k=1).T
         elif extra_kernel_hyperparam == 2.5:
-            n = cov.shape[0]
-            pariwise_dist2 = np.zeros((n, n))
-            for i in range(n):
-                for j in range(i + 1, n):
+            n_points = cov.shape[0]
+            pariwise_dist2 = np.zeros((n_points, n_points))
+            for i in range(n_points):
+                for j in range(i + 1, n_points):
                     root_result = root_scalar(lambda x: (1 + x + x**2/3) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x / 3 * (1 + x) * np.exp(-x))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
@@ -121,8 +121,8 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
             pariwise_dist2 = (pariwise_dist2 * length_scale / np.sqrt(5))**2
             pariwise_dist2 += np.triu(pariwise_dist2, k=1).T
         else:
-            n = cov.shape[0]
-            pariwise_dist2 = np.zeros((n, n))
+            n_points = cov.shape[0]
+            pariwise_dist2 = np.zeros((n_points, n_points))
             # matern = Matern(length_scale=1, nu=nu)
             def matern(x):
                 if x == 0:
@@ -135,8 +135,8 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
                 raise ValueError(f"Unable to identify the upperbound of this matern kernel")
             else:
                 upperbound = root_result.root + 0.5
-            for i in range(n):
-                for j in range(i+1, n):
+            for i in range(n_points):
+                for j in range(i+1, n_points):
                     root_result = root_scalar(lambda x: matern(x) - cov_scaled[i, j], x0=1, bracket=(0, upperbound))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
