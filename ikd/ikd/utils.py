@@ -103,7 +103,7 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
             pairwise_dist2 = np.zeros((n_points, n_points))
             for i in range(n_points):
                 for j in range(i + 1, n_points):
-                    root_result = root_scalar(lambda x: (1 + x) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x * np.exp(-x))
+                    root_result = root_scalar(lambda x: (1 + x) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x * np.exp(-x), fprime2=lambda x: (x-1) * np.exp(-x))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
                     pairwise_dist2[i, j] = root_result.root
@@ -114,7 +114,7 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
             pairwise_dist2 = np.zeros((n_points, n_points))
             for i in range(n_points):
                 for j in range(i + 1, n_points):
-                    root_result = root_scalar(lambda x: (1 + x + x**2/3) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x / 3 * (1 + x) * np.exp(-x))
+                    root_result = root_scalar(lambda x: (1 + x + x**2/3) * np.exp(-x) - cov_scaled[i, j], x0=1, fprime=lambda x: - x / 3 * (1 + x) * np.exp(-x), fprime2=lambda x: (-x**2 + x + 1)/3 * np.exp(-x))
                     if root_result.converged is False:
                         raise ValueError(f"Unable to identify the distance between {i} and {j}")
                     pairwise_dist2[i, j] = root_result.root

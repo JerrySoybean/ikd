@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -N GPLVM
+#PBS -A GT-awu36
+#PBS -l walltime=4:00:00
+#PBS -l nodes=1:ppn=1
+#PBS -l pmem=8gb
+#PBS -j oe
+#PBS -o out/GPLVM.out
+#PBS -t 1-252
+
+cd $PBS_O_WORKDIR # change to directory from where I submit job
+module load anaconda3/2021.05
+conda activate cli726
+
+params=`sed -n "${PBS_ARRAYID} p" GPLVM.input`
+paramsArray=($params)
+a=${paramsArray[0]}
+b=${paramsArray[1]}
+c=${paramsArray[2]}
+d=${paramsArray[3]}
+
+python GPLVM.py $a $b $c $d
+echo "Started on `/bin/hostname`"

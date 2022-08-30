@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from ikd.utils import cov2dist2, kernel_cov_generator, rigid_transform, align
 from sklearn.metrics import r2_score
 from scipy.spatial.distance import cdist
-from copy import deepcopy
+from scipy.linalg import eigh
 
 
 def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None) -> tuple:
@@ -23,9 +23,9 @@ def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", vari
     kernel : str, optional
         ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
     variance : int, optional
-        Marginal variance, by default 1
+        Marginal variance, by default 1.
     length_scale : int, optional
-        Length scale of the kernel, by default 1
+        Length scale of the kernel, by default 1.
     extra_kernel_hyperparam : int, optional
         α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
 
@@ -37,20 +37,17 @@ def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", vari
         Cumulative contribution of the eigen-decomposition.
     """
 
+    n_points = cov_samp_th.shape[0]
     pairwise_dist2 = cov2dist2(cov_samp_th, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
     ref_point = np.argmin(pairwise_dist2.max(axis=0))
     # print(ref_point)
-    other_points = list(range(cov_samp_th.shape[0]))
-    other_points.pop(ref_point)
-    k = ((pairwise_dist2[:, [ref_point]] + pairwise_dist2[[ref_point], :] - pairwise_dist2) / 2)[other_points][:, other_points]
-    eigenvalues, eigenvectors = np.linalg.eigh(k) # already sorted ascending
-    # idx = np.argsort(np.abs(eigenvalues))
-    # eigenvalues = eigenvalues[idx]
-    # eigenvectors = eigenvectors[:, idx]
-    # z_pred = np.vstack((eigenvectors[:ref_point, -d_latent:], np.zeros((1, d_latent)), eigenvectors[ref_point:, -d_latent:])) * np.abs(eigenvalues[-d_latent:])**0.5
-    z_pred = np.vstack((eigenvectors[:ref_point, -d_latent:], np.zeros((1, d_latent)), eigenvectors[ref_point:, -d_latent:]))
-    z_pred = z_pred * np.abs(eigenvalues[-d_latent:])**0.5
-    return z_pred, np.sum(eigenvalues[-d_latent:]**2) / np.sum(eigenvalues**2)
+    k = (pairwise_dist2[:, [ref_point]] + pairwise_dist2[[ref_point], :] - pairwise_dist2) / 2
+    # eigenvalues, eigenvectors = np.linalg.eigh(k)
+    # z_pred = eigenvectors[:, -d_latent:] * np.maximum(eigenvalues[-d_latent:], 0)**0.5
+    eigenvalues, eigenvectors = eigh(k, subset_by_index=[n_points-d_latent, n_points-1])
+    z_pred = eigenvectors * np.maximum(eigenvalues, 0)**0.5
+    # z_pred[ref_point], z_pred[:, ref_point] = 0, 0 # for security
+    return z_pred
 
 
 def maximal_cliques(cov_scaled: np.array(float), clique_th: float) -> list:
@@ -122,7 +119,7 @@ def maximal_cliques(cov_scaled: np.array(float), clique_th: float) -> list:
     return clique_list
 
 
-def combine_two_eig(clique0: np.array, clique1: np.array, eig0: np.array, eig1: np.array, cov_samp_th: np.array, ikd_clique, record=None, merge_method="to left"):
+def combine_two_eig(clique0: np.array, clique1: np.array, eig0: np.array, eig1: np.array, cov_samp_th: np.array, ikd_clique, clique_list_backup, eig_list_backup, record=None, merge_method="to left"):
     """Combine two cliques.
 
     Parameters
@@ -153,10 +150,25 @@ def combine_two_eig(clique0: np.array, clique1: np.array, eig0: np.array, eig1: 
     """
     
     # e.g., clique0 = [0, 1, 2], clique1 = [1, 2, 3]
+    if len(clique1) > len(clique0):
+        clique0, clique1 = clique1, clique0
+        eig0, eig1 = eig1, eig0
     n_points = cov_samp_th.shape[0]
-    d_latent = eig0.shape[1]
     inter = np.intersect1d(clique0, clique1) # [1, 2]
     clique = np.union1d(clique0, clique1) # [0, 1, 2, 3]
+
+    if eig0 is None:
+        clique_list_backup.append(clique0)
+        eig0 = ikd_clique(clique0)
+        eig_list_backup.append(eig0)
+    if len(clique0) == len(clique):
+        return clique0, eig0
+    if eig1 is None:
+        clique_list_backup.append(clique1)
+        eig1 = ikd_clique(clique1)
+        eig_list_backup.append(eig1)
+
+    d_latent = eig0.shape[1]
     eig0_onehot = np.zeros((n_points, d_latent))
     eig0_onehot[clique0] = eig0
     eig1_onehot = np.zeros((n_points, d_latent))
@@ -232,15 +244,13 @@ def combine_two_eig(clique0: np.array, clique1: np.array, eig0: np.array, eig1: 
     return clique, eig
 
 
-def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_clique, merge_method="to left"):
+def merge_cliques(clique_list: list, cov_samp_th: np.array, ikd_clique, merge_method="to left"):
     """Merge all cliques.
 
     Parameters
     ----------
     clique_list : list of 1darrays
         List of all maximal cliques learned by the Bron-Kerbosch algorithm using the threshold sample covariance matrix.
-    eig_list : list of 2darrays
-        List of latent estimations of all cliques
     cov_samp_th : ndarray of shape (n_points, n_points)
         Filtered sample covariance matrix.
     ikd_clique : callable
@@ -253,6 +263,10 @@ def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_
     eig : ndarray of (n_points, d_latent)
         All merged latent estimation as a whole.
     """
+
+    eig_list = [None for __ in range(len(clique_list))]
+    clique_list_backup = []
+    eig_list_backup = []
 
     # method 1: At each step, select two with max interset to combine
     n_points = cov_samp_th.shape[0]
@@ -268,7 +282,7 @@ def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_
         clique_j = clique_list.pop(j)
         eig_i = eig_list[i]
         eig_j = eig_list.pop(j)
-        clique, eig = combine_two_eig(clique_i, clique_j, eig_i, eig_j, cov_samp_th, ikd_clique, merge_method=merge_method)
+        clique, eig = combine_two_eig(clique_i, clique_j, eig_i, eig_j, cov_samp_th, ikd_clique, clique_list_backup, eig_list_backup, merge_method=merge_method)
         if len(clique) == n_points: # early stop
             break
         clique_onehot_mat = np.delete(clique_onehot_mat, j, axis=0)
@@ -297,7 +311,7 @@ def merge_cliques(clique_list: list, eig_list: list, cov_samp_th: np.array, ikd_
     #     combine_with = np.argmax(inter_count_list)
     #     clique, eig = combine_two_eig(clique, clique_list.pop(combine_with), eig, eig_list.pop(combine_with), n, ikd_clique, record)
     # # print(record)
-    return eig
+    return eig, clique_list_backup, eig_list_backup
 
 
 def estimate_length_scale(pairwise_dist_from_samp, z_pred, cov_samp_th, variance):
@@ -337,15 +351,15 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
     kernel : str, optional
         ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
     variance : int, optional
-        _description_, by default 1
+        Marginal variance, by default 1.
     length_scale : int, optional
-        Length scale of the kernel, by default 1
+        Length scale of the kernel, by default 1.
     extra_kernel_hyperparam : int, optional
         α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
     clique_th_or_d_observation : float, optional
         If it is >= 1, then it is the GP samples, i.e., the observation dimensionality. Otherwise, it is assumed to be the clique threshold.
     z_ref : ndarray of shape (n_points, d_latent), optional
-        A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is bad than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None
+        A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is bad than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None.
 
     Returns
     -------
@@ -355,7 +369,7 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
 
     n_points = cov_samp_th.shape[0]
     def ikd_clique(clique):
-        return ikd(cov_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)[0]
+        return ikd(cov_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
 
     # Step 1: Determine clique threshold
     if clique_th_or_d_observation >= 1:
@@ -399,8 +413,7 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
     print(f"Clique threshold: {clique_th}, number of cliques: {len(clique_list)}") # debug use
 
     # Step 3: Do eigen-decomposition blockwisely, and merge them
-    eig_list = [ikd_clique(clique) for clique in clique_list] # find the eigen-decomposition solution for each clique
-    z_block = merge_cliques(deepcopy(clique_list), deepcopy(eig_list), cov_samp_th, ikd_clique, merge_method)
+    z_block, clique_list, eig_list = merge_cliques(clique_list, cov_samp_th, ikd_clique, merge_method)
 
     # Step 4: Optional step. If z_ref is provided, then the algorithm will compare the recovery with z_ref, and determine if it is necessary to align with z_ref in case z_block from above is really bad.
     if z_ref is not None:
