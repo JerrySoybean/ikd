@@ -1,0 +1,22 @@
+#!/bin/bash
+#PBS -N kernel_mismatch
+#PBS -A GT-awu36
+#PBS -l walltime=4:00:00
+#PBS -l nodes=1:ppn=1
+#PBS -l pmem=4gb
+#PBS -j oe
+#PBS -o out/kernel_mismatch.out
+#PBS -t 1-56
+
+cd $PBS_O_WORKDIR # change to directory from where I submit job
+module load anaconda3/2021.05
+conda activate cli726
+
+params=`sed -n "${PBS_ARRAYID} p" kernel_mismatch.input`
+paramsArray=($params)
+a=${paramsArray[0]}
+b=${paramsArray[1]}
+c=${paramsArray[2]}
+
+python kernel_mismatch.py $a $b $c
+echo "Started on `/bin/hostname`"

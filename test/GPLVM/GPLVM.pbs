@@ -3,7 +3,7 @@
 #PBS -A GT-awu36
 #PBS -l walltime=4:00:00
 #PBS -l nodes=1:ppn=1
-#PBS -l pmem=8gb
+#PBS -l pmem=4gb
 #PBS -j oe
 #PBS -o out/GPLVM.out
 #PBS -t 1-252

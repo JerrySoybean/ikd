@@ -42,9 +42,11 @@ def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", vari
     ref_point = np.argmin(pairwise_dist2.max(axis=0))
     # print(ref_point)
     k = (pairwise_dist2[:, [ref_point]] + pairwise_dist2[[ref_point], :] - pairwise_dist2) / 2
-    # eigenvalues, eigenvectors = np.linalg.eigh(k)
-    # z_pred = eigenvectors[:, -d_latent:] * np.maximum(eigenvalues[-d_latent:], 0)**0.5
-    eigenvalues, eigenvectors = eigh(k, subset_by_index=[n_points-d_latent, n_points-1])
+    try:
+        eigenvalues, eigenvectors = eigh(k, subset_by_index=[n_points-d_latent, n_points-1])
+    except:
+        eigenvalues, eigenvectors = np.linalg.eigh(k)
+        eigenvalues, eigenvectors = eigenvectors[:, -d_latent:], eigenvalues[-d_latent:]
     z_pred = eigenvectors * np.maximum(eigenvalues, 0)**0.5
     # z_pred[ref_point], z_pred[:, ref_point] = 0, 0 # for security
     return z_pred
