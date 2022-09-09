@@ -173,7 +173,7 @@ def align(z_true: np.array, z_pred: np.array) -> np.array:
     return z_aligned
 
 
-def filt_cov_samp(cov_samp: np.array, variance=1) -> np.array:
+def filt_cov_samp(cov_samp: np.array, variance=1, low=1e-3) -> np.array:
     """Sample covariance matrix filter.
 
     Parameters
@@ -190,7 +190,7 @@ def filt_cov_samp(cov_samp: np.array, variance=1) -> np.array:
     """
 
     cov_samp_th = cov_samp.copy()
-    cov_samp_th[cov_samp_th <= 0] = 1e-5 # filter all negative covariance
+    cov_samp_th[cov_samp_th <= 0] = low # filter all negative covariance
     cov_samp_th[cov_samp_th > variance] = variance - 1e-5 # filter all > variance covariance, new added filter !!!
     np.fill_diagonal(cov_samp_th, variance)
     return cov_samp_th

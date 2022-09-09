@@ -101,11 +101,14 @@ def learn_GPLVM(x):
 
 def learn_IKD(x):
     cov_samp = np.cov(x)
-    variance_samp = np.mean(np.diagonal(cov_samp))
+    if f == 'Gaussian bump':
+        variance_samp = np.mean(cov_samp) * 3
+    else:
+        variance_samp = np.mean(np.diagonal(cov_samp))
     cov_samp_th = utils.filt_cov_samp(cov_samp, variance_samp)
     start = time.time()
     if f == 'sin':
-        z_ikd = core.ikd_blockwise(cov_samp_th, d_latent, variance=variance_samp, clique_th_or_d_observation=0.3)
+        z_ikd = core.ikd_blockwise(cov_samp_th, d_latent, variance=variance_samp, clique_th_or_d_observation=0.3, max_n_cliques=400)
     else:
         z_ikd = core.ikd_blockwise(cov_samp_th, d_latent, variance=variance_samp, clique_th_or_d_observation=d_observation)
     end = time.time()
@@ -140,7 +143,7 @@ elif args.method_idx == 8:
     learn = learn_IKD
 
 
-df = pd.DataFrame(columns=['$R^2$', 'MSE', 'time', 'f', 'd_observation' 'trial', 'method'])
+df = pd.DataFrame(columns=['$R^2$', 'MSE', 'runtime', 'f', 'd_observation', 'trial', 'method'])
 
 for trial in range(n_trials):
     rng = np.random.default_rng(seed=trial)

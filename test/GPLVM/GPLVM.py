@@ -54,7 +54,7 @@ elif args.method_idx == 2:
 z_true = datasets.generate_latent(d_latent, args.dataset)
 cov_true = utils.kernel_cov_generator(z_true, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
 
-df = pd.DataFrame(columns=['r2_true', 'mse_true', 'time', 'd_observation', 'trial', 'method', 'dataset', 'kernel'])
+df = pd.DataFrame(columns=['r2_true', 'mse_true', 'runtime', 'd_observation', 'trial', 'method', 'dataset', 'kernel'])
 
 def learn_PCA(x):
     pca = PCA(n_components=d_latent)

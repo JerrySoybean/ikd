@@ -52,7 +52,7 @@ def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", vari
     return z_pred
 
 
-def maximal_cliques(cov_scaled: np.array(float), clique_th: float) -> list:
+def maximal_cliques(cov_scaled: np.array(float), clique_th: float, max_n_cliques=500) -> list:
     """Find maximal cliques using the Bron-Kerbosch algorithm.
 
     Given a graph's boolean adjacency matrix, A, find all maximal cliques on A using the Bron-Kerbosch algorithm in a recursive manner. The graph is required to be undirected and must contain no self-edges.
@@ -96,7 +96,7 @@ def maximal_cliques(cov_scaled: np.array(float), clique_th: float) -> list:
             # report r as a maximal clique
             clique_list.append(np.where(r)[0])
         else:
-            if len(clique_list) >= 500:
+            if len(clique_list) >= max_n_cliques:
                 # print("Terminate the maximal_cliques algorithm")
                 return
             # choose pivot
@@ -341,7 +341,7 @@ def estimate_length_scale(pairwise_dist_from_samp, z_pred, cov_samp_th, variance
     return length_scale
 
 
-def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, clique_th_or_d_observation=0.2, z_ref=None):
+def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, clique_th_or_d_observation=0.2, z_ref=None, max_n_cliques=500):
     """Blockwise Inverse Kernel Decomposition.
 
     Parameters
@@ -387,7 +387,7 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
 
     # Step 2: Find clique_list
     while True:
-        clique_list = maximal_cliques(cov_samp_th / variance, clique_th)
+        clique_list = maximal_cliques(cov_samp_th / variance, clique_th, max_n_cliques=max_n_cliques)
         clique_list = [clique for clique in clique_list if len(clique) >= d_latent + 2]
         if len(clique_list) <= 1:
             print("Only one clique, identical to full eigen-decomposition")
