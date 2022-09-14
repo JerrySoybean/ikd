@@ -391,7 +391,7 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
         clique_list = [clique for clique in clique_list if len(clique) >= d_latent + 2]
         if len(clique_list) <= 1:
             print("Only one clique, identical to full eigen-decomposition")
-            z_block = ikd_clique(clique_list[0]) # z_ikd
+            z_block = ikd_clique(np.arange(n_points)) # z_ikd
             return z_block
         remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
         merge_method = "to left"
@@ -405,13 +405,33 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
                 if clique_th_or_d_observation < 1 or clique_th > 0.26:
                     merge_method = "average"
                     print("Too many remaining indices, use nearest neighbors to find all cliques for every points")
-                    clique_list = [np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in range(n_points)]
+                    # clique_list = [np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in range(n_points)]
+
+                    existing_indices = np.array([])
+                    clique_list = []
+                    for idx in range(n_points):
+                        clique = np.where(cov_samp_th[idx] > clique_th)[0]
+                        if len(clique) > d_latent + 1:
+                            existing_indices = np.union1d(existing_indices, clique)
+                            clique_list.append(clique)
+                        if len(existing_indices) == n_points:
+                            break
+                    if len(clique_list) == 0:
+                        print("Too high threshold, full eigen-decomposition")
+                        z_block = ikd_clique(np.arange(n_points)) # z_ikd
+                        return z_block
+                    if len(existing_indices) < n_points:
+                        remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
+                        clique_list.extend([np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
+
                     break
                 else:
                     clique_th += 0.04
                     continue
         else:
             break
+
+
     print(f"Clique threshold: {clique_th}, number of cliques: {len(clique_list)}") # debug use
 
     # Step 3: Do eigen-decomposition blockwisely, and merge them
