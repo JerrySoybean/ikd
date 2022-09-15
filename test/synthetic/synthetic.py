@@ -100,17 +100,11 @@ def learn_GPLVM(x):
     return z_gplvm, end-start
 
 def learn_IKD(x):
-    cov_samp = np.cov(x)
-    if f == 'Gaussian bump':
-        variance_samp = np.mean(cov_samp) * 3
-    else:
-        variance_samp = np.mean(np.diagonal(cov_samp))
-    cov_samp_th = utils.filt_cov_samp(cov_samp, variance_samp)
     start = time.time()
-    if f == 'sin':
-        z_ikd = core.ikd_blockwise(cov_samp_th, d_latent, variance=variance_samp, clique_th_or_d_observation=0.3, max_n_cliques=400)
+    if f == 'Gaussian bump':
+        z_ikd = core.ikd_blockwise(x, d_latent, clique_th=0.2, max_n_cliques=2)
     else:
-        z_ikd = core.ikd_blockwise(cov_samp_th, d_latent, variance=variance_samp, clique_th_or_d_observation=d_observation)
+        z_ikd = core.ikd_blockwise(x, d_latent, clique_th=0.4, max_n_cliques=2)
     end = time.time()
     return z_ikd, end-start
 

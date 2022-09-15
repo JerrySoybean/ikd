@@ -6,7 +6,7 @@
 #PBS -l pmem=4gb
 #PBS -j oe
 #PBS -o out/synthetic.out
-#PBS -t 1-7
+#PBS -t 1-21
 
 cd $PBS_O_WORKDIR # change to directory from where I submit job
 module load anaconda3/2021.05
