@@ -341,25 +341,21 @@ def estimate_length_scale(pairwise_dist_from_samp, z_pred, cov_samp_th, variance
     return length_scale
 
 
-def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, clique_th_or_d_observation=0.2, z_ref=None, max_n_cliques=500):
+def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extra_kernel_hyperparam=None, clique_th=None, z_ref=None, max_n_cliques=500):
     """Blockwise Inverse Kernel Decomposition.
 
     Parameters
     ----------
-    cov_samp_th : ndarray of shape (n_points, n_points)
-        Filtered sample covariance matrix.
+    x : ndarray of shape (n_points, d_observation)
+        Observation matrix.
     d_latent : int
         Latent dimensionality.
     kernel : str, optional
         ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
-    variance : int, optional
-        Marginal variance, by default 1.
-    length_scale : int, optional
-        Length scale of the kernel, by default 1.
     extra_kernel_hyperparam : int, optional
         α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
-    clique_th_or_d_observation : float, optional
-        If it is >= 1, then it is the GP samples, i.e., the observation dimensionality. Otherwise, it is assumed to be the clique threshold.
+    clique_th : float, optional
+        If it is None, then will use d_observation to determine clique threshold automatically. Otherwise, it is assumed to be a given clique threshold.
     z_ref : ndarray of shape (n_points, d_latent), optional
         A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is bad than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None.
 
@@ -369,48 +365,48 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
         Estimated latents.
     """
 
-    n_points = cov_samp_th.shape[0]
+    n_points, d_observation = x.shape
+    corr_samp_th = np.clip(np.corrcoef(x), a_min=1e-3, a_max=None)
+
     def ikd_clique(clique):
-        return ikd(cov_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
+        return ikd(corr_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam)
 
     # Step 1: Determine clique threshold
-    if clique_th_or_d_observation >= 1:
-        d_observation = clique_th_or_d_observation
+    clique_th_input = clique_th
+    if clique_th_input is None:
         if d_observation <= 100:
             clique_th = 0.3
         elif d_observation >= 1000:
             clique_th = 0.1
         else:
             clique_th = 0.7 - 0.2 * np.log10(d_observation)
-    else:
-        clique_th = clique_th_or_d_observation
+    if clique_th <= 1e-3:
+        print("Only one clique, identical to full eigen-decomposition")
+        z_block = ikd_clique(np.arange(n_points)) # z_ikd
+        return z_block
 
     # Step 2: Find clique_list
     while True:
-        clique_list = maximal_cliques(cov_samp_th / variance, clique_th, max_n_cliques=max_n_cliques)
+        clique_list = maximal_cliques(corr_samp_th, clique_th, max_n_cliques=max_n_cliques)
         clique_list = [clique for clique in clique_list if len(clique) >= d_latent + 2]
-        if len(clique_list) <= 1:
-            print("Only one clique, identical to full eigen-decomposition")
-            z_block = ikd_clique(np.arange(n_points)) # z_ikd
-            return z_block
         remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
         merge_method = "to left"
         if len(remaining_indices) > 0:
             pos = d_latent + max(int(0.02 * n_points), 2)
             if len(remaining_indices) / n_points <= 0.05:
                 print(f"Use nearest neighbors to find cliques that includes those remaining indices: {remaining_indices}")
-                clique_list.extend([np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
+                clique_list.extend([np.sort(np.argpartition(corr_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
                 break
             else:
-                if clique_th_or_d_observation < 1 or clique_th > 0.26:
+                if (clique_th_input is not None) or (clique_th > 0.26):
                     merge_method = "average"
                     print("Too many remaining indices, use nearest neighbors to find all cliques for every points")
-                    # clique_list = [np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in range(n_points)]
+                    # clique_list = [np.sort(np.argpartition(corr_samp_th[idx], -pos)[-pos:]) for idx in range(n_points)]
 
                     existing_indices = np.array([])
                     clique_list = []
                     for idx in range(n_points):
-                        clique = np.where(cov_samp_th[idx] > clique_th)[0]
+                        clique = np.where(corr_samp_th[idx] > clique_th)[0]
                         if len(clique) > d_latent + 1:
                             existing_indices = np.union1d(existing_indices, clique)
                             clique_list.append(clique)
@@ -422,7 +418,7 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
                         return z_block
                     if len(existing_indices) < n_points:
                         remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
-                        clique_list.extend([np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
+                        clique_list.extend([np.sort(np.argpartition(corr_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
 
                     break
                 else:
@@ -435,19 +431,19 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
     print(f"Clique threshold: {clique_th}, number of cliques: {len(clique_list)}") # debug use
 
     # Step 3: Do eigen-decomposition blockwisely, and merge them
-    z_block, clique_list, eig_list = merge_cliques(clique_list, cov_samp_th, ikd_clique, merge_method)
+    z_block, clique_list, eig_list = merge_cliques(clique_list, corr_samp_th, ikd_clique, merge_method)
 
     # Step 4: Optional step. If z_ref is provided, then the algorithm will compare the recovery with z_ref, and determine if it is necessary to align with z_ref in case z_block from above is really bad.
     if z_ref is not None:
         # estimate length_scale
-        pairwise_dist_from_samp = np.sqrt(cov2dist2(cov_samp_th, kernel=kernel, variance=variance, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam))
+        pairwise_dist_from_samp = np.sqrt(cov2dist2(corr_samp_th, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam))
 
-        length_scale_ref = estimate_length_scale(pairwise_dist_from_samp, z_ref, cov_samp_th, variance=variance)
-        cov_ref = kernel_cov_generator(z_ref, kernel=kernel, variance=variance, length_scale=length_scale_ref, extra_kernel_hyperparam=extra_kernel_hyperparam)
-        length_scale_block = estimate_length_scale(pairwise_dist_from_samp, z_block, cov_samp_th, variance=variance)
-        cov_block = kernel_cov_generator(z_block, kernel=kernel, variance=variance, length_scale=length_scale_block, extra_kernel_hyperparam=extra_kernel_hyperparam)
+        length_scale_ref = estimate_length_scale(pairwise_dist_from_samp, z_ref, corr_samp_th, variance=1)
+        cov_ref = kernel_cov_generator(z_ref, kernel=kernel, variance=1, length_scale=length_scale_ref, extra_kernel_hyperparam=extra_kernel_hyperparam)
+        length_scale_block = estimate_length_scale(pairwise_dist_from_samp, z_block, corr_samp_th, variance=1)
+        cov_block = kernel_cov_generator(z_block, kernel=kernel, variance=1, length_scale=length_scale_block, extra_kernel_hyperparam=extra_kernel_hyperparam)
 
-        if r2_score(cov_samp_th.flatten(), cov_ref.flatten()) - r2_score(cov_samp_th.flatten(), cov_block.flatten()) >= 0.05:
+        if r2_score(corr_samp_th.flatten(), cov_ref.flatten()) - r2_score(corr_samp_th.flatten(), cov_block.flatten()) >= 0.05:
             print("Merge with the reference estimation!")
             z_block = np.zeros((len(clique_list), z_ref.shape[0], z_ref.shape[1]))
             z_block[:, :, :].fill(np.nan)
@@ -456,3 +452,120 @@ def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponent
             z_block = np.nanmean(z_block, axis=0)
 
     return z_block
+
+
+# def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, clique_th_or_d_observation=0.2, z_ref=None, max_n_cliques=500):
+#     """Blockwise Inverse Kernel Decomposition.
+
+#     Parameters
+#     ----------
+#     cov_samp_th : ndarray of shape (n_points, n_points)
+#         Filtered sample covariance matrix.
+#     d_latent : int
+#         Latent dimensionality.
+#     kernel : str, optional
+#         ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
+#     variance : int, optional
+#         Marginal variance, by default 1.
+#     length_scale : int, optional
+#         Length scale of the kernel, by default 1.
+#     extra_kernel_hyperparam : int, optional
+#         α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
+#     clique_th_or_d_observation : float, optional
+#         If it is >= 1, then it is the GP samples, i.e., the observation dimensionality. Otherwise, it is assumed to be the clique threshold.
+#     z_ref : ndarray of shape (n_points, d_latent), optional
+#         A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is bad than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None.
+
+#     Returns
+#     -------
+#     z_block : ndarray of shape (n_points, d_latent)
+#         Estimated latents.
+#     """
+
+#     n_points = cov_samp_th.shape[0]
+#     def ikd_clique(clique):
+#         return ikd(cov_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
+
+#     # Step 1: Determine clique threshold
+#     if clique_th_or_d_observation >= 1:
+#         d_observation = clique_th_or_d_observation
+#         if d_observation <= 100:
+#             clique_th = 0.3
+#         elif d_observation >= 1000:
+#             clique_th = 0.1
+#         else:
+#             clique_th = 0.7 - 0.2 * np.log10(d_observation)
+#     else:
+#         clique_th = clique_th_or_d_observation
+
+#     # Step 2: Find clique_list
+#     while True:
+#         clique_list = maximal_cliques(cov_samp_th / variance, clique_th, max_n_cliques=max_n_cliques)
+#         clique_list = [clique for clique in clique_list if len(clique) >= d_latent + 2]
+#         if len(clique_list) <= 1:
+#             print("Only one clique, identical to full eigen-decomposition")
+#             z_block = ikd_clique(np.arange(n_points)) # z_ikd
+#             return z_block
+#         remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
+#         merge_method = "to left"
+#         if len(remaining_indices) > 0:
+#             pos = d_latent + max(int(0.02 * n_points), 2)
+#             if len(remaining_indices) / n_points <= 0.05:
+#                 print(f"Use nearest neighbors to find cliques that includes those remaining indices: {remaining_indices}")
+#                 clique_list.extend([np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
+#                 break
+#             else:
+#                 if clique_th_or_d_observation < 1 or clique_th > 0.26:
+#                     merge_method = "average"
+#                     print("Too many remaining indices, use nearest neighbors to find all cliques for every points")
+#                     # clique_list = [np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in range(n_points)]
+
+#                     existing_indices = np.array([])
+#                     clique_list = []
+#                     for idx in range(n_points):
+#                         clique = np.where(cov_samp_th[idx] > clique_th)[0]
+#                         if len(clique) > d_latent + 1:
+#                             existing_indices = np.union1d(existing_indices, clique)
+#                             clique_list.append(clique)
+#                         if len(existing_indices) == n_points:
+#                             break
+#                     if len(clique_list) == 0:
+#                         print("Too high threshold, full eigen-decomposition")
+#                         z_block = ikd_clique(np.arange(n_points)) # z_ikd
+#                         return z_block
+#                     if len(existing_indices) < n_points:
+#                         remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
+#                         clique_list.extend([np.sort(np.argpartition(cov_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
+
+#                     break
+#                 else:
+#                     clique_th += 0.04
+#                     continue
+#         else:
+#             break
+
+
+#     print(f"Clique threshold: {clique_th}, number of cliques: {len(clique_list)}") # debug use
+
+#     # Step 3: Do eigen-decomposition blockwisely, and merge them
+#     z_block, clique_list, eig_list = merge_cliques(clique_list, cov_samp_th, ikd_clique, merge_method)
+
+#     # Step 4: Optional step. If z_ref is provided, then the algorithm will compare the recovery with z_ref, and determine if it is necessary to align with z_ref in case z_block from above is really bad.
+#     if z_ref is not None:
+#         # estimate length_scale
+#         pairwise_dist_from_samp = np.sqrt(cov2dist2(cov_samp_th, kernel=kernel, variance=variance, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam))
+
+#         length_scale_ref = estimate_length_scale(pairwise_dist_from_samp, z_ref, cov_samp_th, variance=variance)
+#         cov_ref = kernel_cov_generator(z_ref, kernel=kernel, variance=variance, length_scale=length_scale_ref, extra_kernel_hyperparam=extra_kernel_hyperparam)
+#         length_scale_block = estimate_length_scale(pairwise_dist_from_samp, z_block, cov_samp_th, variance=variance)
+#         cov_block = kernel_cov_generator(z_block, kernel=kernel, variance=variance, length_scale=length_scale_block, extra_kernel_hyperparam=extra_kernel_hyperparam)
+
+#         if r2_score(cov_samp_th.flatten(), cov_ref.flatten()) - r2_score(cov_samp_th.flatten(), cov_block.flatten()) >= 0.05:
+#             print("Merge with the reference estimation!")
+#             z_block = np.zeros((len(clique_list), z_ref.shape[0], z_ref.shape[1]))
+#             z_block[:, :, :].fill(np.nan)
+#             for i, (clique_i, eig_i) in enumerate(zip(clique_list, eig_list)):
+#                 z_block[i, clique_i] = align(z_ref[clique_i], eig_i)
+#             z_block = np.nanmean(z_block, axis=0)
+
+#     return z_block
