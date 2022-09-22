@@ -9,14 +9,14 @@ from scipy.spatial.distance import cdist
 from scipy.linalg import eigh
 
 
-def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None) -> tuple:
+def ikd(corr_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, ref_point='min_max') -> tuple:
     """Inverse Kernel Decomposition.
 
     Identify latents from filtered sample covariance matrix.
 
     Parameters
     ----------
-    cov_samp_th : ndarray of shape (n_points, n_points)
+    corr_samp_th : ndarray of shape (n_points, n_points)
         Filtered sample covariance matrix.
     d_latent : int
         Latent dimensionality.
@@ -37,11 +37,22 @@ def ikd(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", vari
         Cumulative contribution of the eigen-decomposition.
     """
 
-    n_points = cov_samp_th.shape[0]
-    pairwise_dist2 = cov2dist2(cov_samp_th, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
-    ref_point = np.argmin(pairwise_dist2.max(axis=0))
-    # print(ref_point)
-    k = (pairwise_dist2[:, [ref_point]] + pairwise_dist2[[ref_point], :] - pairwise_dist2) / 2
+    n_points = corr_samp_th.shape[0]
+    pairwise_dist2 = cov2dist2(corr_samp_th, kernel=kernel, variance=variance, length_scale=length_scale, extra_kernel_hyperparam=extra_kernel_hyperparam)
+
+    if ref_point == 'min_max':
+        ref_point = np.argmin(pairwise_dist2.max(axis=0))
+        k = (pairwise_dist2[:, [ref_point]] + pairwise_dist2[[ref_point], :] - pairwise_dist2) / 2
+    elif ref_point == 'min_mean':
+        ref_point = np.argmin(pairwise_dist2.mean(axis=0))
+        k = (pairwise_dist2[:, [ref_point]] + pairwise_dist2[[ref_point], :] - pairwise_dist2) / 2
+    elif ref_point == 'center':
+        # Like Isomap (MSD): https://blog.csdn.net/qq_30565883/article/details/104316501, https://zhuanlan.zhihu.com/p/52591878
+        row_sum = np.sum(pairwise_dist2, axis=0)
+        col_sum = np.sum(pairwise_dist2, axis=1)
+        row_col_sum = np.sum(row_sum)
+        k = (row_sum/n_points + col_sum/n_points - row_col_sum/n_points**2 - pairwise_dist2) / 2
+        
     try:
         eigenvalues, eigenvectors = eigh(k, subset_by_index=[n_points-d_latent, n_points-1])
     except:
@@ -341,7 +352,7 @@ def estimate_length_scale(pairwise_dist_from_samp, z_pred, cov_samp_th, variance
     return length_scale
 
 
-def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extra_kernel_hyperparam=None, clique_th=None, z_ref=None, max_n_cliques=500):
+def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extra_kernel_hyperparam=None, clique_th=None, z_ref=None, max_n_cliques=500, ref_point='min_max'):
     """Blockwise Inverse Kernel Decomposition.
 
     Parameters
@@ -369,7 +380,7 @@ def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extr
     corr_samp_th = np.clip(np.corrcoef(x), a_min=1e-3, a_max=None)
 
     def ikd_clique(clique):
-        return ikd(corr_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam)
+        return ikd(corr_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam, ref_point=ref_point)
 
     # Step 1: Determine clique threshold
     clique_th_input = clique_th
