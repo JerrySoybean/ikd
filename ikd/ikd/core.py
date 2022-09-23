@@ -378,6 +378,8 @@ def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extr
 
     n_points, d_observation = x.shape
     corr_samp_th = np.clip(np.corrcoef(x), a_min=1e-3, a_max=None)
+    np.nan_to_num(corr_samp_th, copy=False, nan=1e-3)
+    np.fill_diagonal(corr_samp_th, 1)
 
     def ikd_clique(clique):
         return ikd(corr_samp_th[clique][:, clique], d_latent, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam, ref_point=ref_point)
@@ -423,14 +425,9 @@ def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extr
                             clique_list.append(clique)
                         if len(existing_indices) == n_points:
                             break
-                    if len(clique_list) == 0:
-                        print("Too high threshold, full eigen-decomposition")
-                        z_block = ikd_clique(np.arange(n_points)) # z_ikd
-                        return z_block
                     if len(existing_indices) < n_points:
                         remaining_indices = np.setdiff1d(np.arange(n_points), np.unique(np.concatenate(clique_list)))
                         clique_list.extend([np.sort(np.argpartition(corr_samp_th[idx], -pos)[-pos:]) for idx in remaining_indices])
-
                     break
                 else:
                     clique_th += 0.04
@@ -438,7 +435,10 @@ def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extr
         else:
             break
 
-
+    if len(clique_list) <= 1:
+        print("Too high threshold, full eigen-decomposition")
+        z_block = ikd_clique(np.arange(n_points)) # z_ikd
+        return z_block
     print(f"Clique threshold: {clique_th}, number of cliques: {len(clique_list)}") # debug use
 
     # Step 3: Do eigen-decomposition blockwisely, and merge them

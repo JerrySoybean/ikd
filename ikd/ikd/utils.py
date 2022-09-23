@@ -19,7 +19,7 @@ def kernel_cov_generator(z: np.array, z_other=None, kernel="squared exponential"
     z_other : ndarray of shape (n_points_other, d_latent), optional
         Another set of latents, by default None. If not provided, compute kernel covariance matrix k(z, z); otherwise, compute kernel covariance matrix k(z, z_other).
     kernel : str, optional
-        ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
+        ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern" | "linear"], by default "squared exponential".
     variance : int, optional
         Marginal variance, by default 1.
     length_scale : int, optional
@@ -57,6 +57,8 @@ def kernel_cov_generator(z: np.array, z_other=None, kernel="squared exponential"
         cov = variance * matern(z, z_other)
     elif kernel == 'autoregressive':
         cov = variance * np.exp(-cdist(z, z_other, 'minkowski', p=1.) / length_scale)
+    elif kernel == 'linear':
+        cov = variance * (z @ z.T) / length_scale**2
     else:
         raise ValueError('No such kernel')
     if show is True:
@@ -74,7 +76,7 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
     cov : ndarray of shape (n_points, n_points)
         Covariance matrix.
     kernel : str, optional
-        ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
+        ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern" | "linear"], by default "squared exponential".
     variance : int, optional
         Marginal variance, by default 1
     length_scale : int, optional
@@ -143,6 +145,8 @@ def cov2dist2(cov: np.array, kernel="squared exponential", variance=1, length_sc
                     pairwise_dist2[i, j] = root_result.root
             pairwise_dist2 = pairwise_dist2**2                    
             pairwise_dist2 += np.triu(pairwise_dist2, k=1).T
+    elif kernel == 'linear':
+        return cov_scaled * length_scale**2
     else:
         raise ValueError("No such kernel")
     return pairwise_dist2
