@@ -3,7 +3,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from ikd.utils import cov2dist2, kernel_cov_generator, rigid_transform, align
+from ikd.utils import cov2dist2, kernel_cov_generator, rigid_transform, align, filt_cov_samp
 from sklearn.metrics import r2_score
 from scipy.spatial.distance import cdist
 from scipy.linalg import eigh
