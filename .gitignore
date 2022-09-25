@@ -139,3 +139,5 @@ hc-6/
 # Other packages
 code_hip/
 test/F-MNIST/data
+test/COIL-20/data
+test/CIFAR10/data

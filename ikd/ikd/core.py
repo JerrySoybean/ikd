@@ -3,10 +3,12 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from ikd.utils import cov2dist2, kernel_cov_generator, rigid_transform, align, filt_cov_samp
+from ikd.utils import cov2dist2, kernel_cov_generator, rigid_transform, align
 from sklearn.metrics import r2_score
 from scipy.spatial.distance import cdist
 from scipy.linalg import eigh
+from scipy.sparse.csgraph import shortest_path
+from scipy.sparse import csr_matrix
 
 
 def ikd(corr_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, ref_point='min_max') -> tuple:
@@ -463,6 +465,80 @@ def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extr
             z_block = np.nanmean(z_block, axis=0)
 
     return z_block
+
+
+def check_connectivity(d):
+    n_points = d.shape[0]
+    sub_graph_list = []
+    existing_indices = np.arange(n_points)
+    existing_d = d.copy()
+    while True:
+        idx = np.isinf(existing_d[0])
+        sub_graph = existing_indices[~idx]
+        sub_graph_list.append(sub_graph)
+        existing_indices = existing_indices[idx]
+        existing_d = existing_d[idx][:, idx]
+        if len(existing_indices) == 0:
+            return sub_graph_list
+
+
+def grid_point(d_latent, side_length, n):
+    coordinate = []
+    while True:
+        quotient = n // side_length
+        remainder = n % side_length
+        coordinate.append(remainder)
+        if quotient == 0:
+            break
+        n = quotient
+    coordinate.reverse()
+    return np.hstack((np.zeros(d_latent - len(coordinate)), coordinate))
+
+
+def ikd_geodesic(x: np.array, d_latent: int, kernel="squared exponential", extra_kernel_hyperparam=None, n_neighbors=5, clique_th=None, ref_point='min_max'):
+
+    n_points = x.shape[0]
+    corr_samp = np.corrcoef(x)
+    corr_samp_th = corr_samp.copy()
+    if clique_th is None:
+        corr_samp_th[corr_samp_th <= 1e-3] = 1e-3
+        if np.sum(np.isnan(corr_samp_th)) > 0:
+            print('Warning! Deficient correlation matrix')
+            np.nan_to_num(corr_samp_th, copy=False, nan=1e-3)
+            np.fill_diagonal(corr_samp_th, 1)
+        a = -np.log(corr_samp_th)
+        a_new = np.zeros((n_points, n_points))
+        np.fill_diagonal(a, 1e5)
+        for i in range(n_points):
+            idx = np.argpartition(a[i], n_neighbors)[:n_neighbors]
+            a_new[i, idx] = a[i, idx]
+            a_new[idx, i] = a[idx, i]
+        d = shortest_path(csr_matrix(a_new), directed=False)
+    else:
+        corr_samp_th[corr_samp_th <= clique_th] = 1e-3
+        d = shortest_path(-np.log(corr_samp_th), directed=False)
+    
+    sub_graph_list = check_connectivity(d)
+    n_sub_graphs = len(sub_graph_list)
+    z_list = []
+    for i in range(n_sub_graphs):
+        sub_graph = sub_graph_list[i]
+        corr_geodesic = np.exp(-d[sub_graph][:, sub_graph])
+        z_list.append(ikd(corr_geodesic, d_latent, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam, ref_point=ref_point))
+    
+    if n_sub_graphs == 1:
+        return z_list[0]
+    else:
+        n_graphs_per_axis = int(np.ceil(n_sub_graphs**(1/d_latent)))
+        sub_graph_radius = np.zeros(n_sub_graphs)
+        for i in range(n_sub_graphs):
+            sub_graph_radius[i] = np.max(np.max(z_list[i], axis=0) - np.min(z_list[i], axis=0)) / 2
+        sub_graph_radius = np.max(sub_graph_radius)
+        z_pred = np.zeros((n_points, d_latent))
+        for i in range(n_sub_graphs):
+            z_pred[sub_graph_list[i], :] = z_list[i] + grid_point(d_latent, n_graphs_per_axis, i) * 3 * sub_graph_radius
+        return z_pred
+
 
 
 # def ikd_blockwise(cov_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, clique_th_or_d_observation=0.2, z_ref=None, max_n_cliques=500):
