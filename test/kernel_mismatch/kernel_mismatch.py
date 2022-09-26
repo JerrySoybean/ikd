@@ -4,7 +4,7 @@ from sklearn.metrics import r2_score, mean_squared_error
 import logging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 from sklearn.decomposition import PCA
-from sklearn.manifold import SpectralEmbedding
+from sklearn.manifold import SpectralEmbedding, Isomap
 import GPy
 import argparse
 
@@ -51,9 +51,8 @@ def learn_GPLVM(x):
     return z_gplvm
 
 def learn_IKD(x):
-    cov_samp_th = utils.filt_cov_samp(np.cov(x), variance=variance)
-    z_le = SpectralEmbedding(n_components=d_latent).fit_transform(x)
-    z_ikd = core.ikd_blockwise(cov_samp_th, d_latent, kernel=kernel, extra_kernel_hyperparam=extra_kernel_hyperparam, z_ref=z_le, clique_th_or_d_observation=d_observation)
+    z_isomap = Isomap(n_components=d_latent).fit_transform(x)
+    z_ikd = core.ikd_blockwise(x, d_latent, kernel=kernel, extra_kernel_hyperparam=extra_kernel_hyperparam, z_ref=z_isomap)
     return z_ikd
 
 if method == 'GPLVM':

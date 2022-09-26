@@ -103,9 +103,7 @@ def learn_IKD(x):
     start = time.time()
     if f == 'Gaussian bump':
         z_ikd = core.ikd_blockwise(x, d_latent, clique_th=0.2, max_n_cliques=2)
-    elif f == 'sin':
-        z_ikd = core.ikd_blockwise(x, d_latent, clique_th=0.6, max_n_cliques=2)
-    elif f == 'GP':
+    else:
         z_ikd = core.ikd_blockwise(x, d_latent, clique_th=0.6, max_n_cliques=2)
     end = time.time()
     return z_ikd, end-start
