@@ -7,11 +7,15 @@ from sklearn.metrics import r2_score, mean_squared_error
 import logging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 from sklearn.decomposition import PCA, KernelPCA
-from sklearn.manifold import SpectralEmbedding, LocallyLinearEmbedding, Isomap, TSNE
+from sklearn.manifold import SpectralEmbedding, Isomap, TSNE
 import umap
 import GPy
 import time
 import argparse
+
+import sys
+sys.path.append('..')
+from vae import MyVAE
 
 from ikd import utils, core, evaluate, datasets
 
@@ -62,13 +66,6 @@ def learn_LE(x):
     end = time.time()
     return z_le, end-start
 
-def learn_LLE(x):
-    lle = LocallyLinearEmbedding(n_components=d_latent)
-    start = time.time()
-    z_lle = lle.fit_transform(x)
-    end = time.time()
-    return z_lle, end-start
-
 def learn_TSNE(x):
     tsne = TSNE(n_components=d_latent, init='pca', learning_rate='auto', random_state=42)
     start = time.time()
@@ -99,6 +96,13 @@ def learn_GPLVM(x):
     z_gplvm = m_gplvm.X.values
     return z_gplvm, end-start
 
+def learn_VAE(x):
+    VAE = MyVAE(n_components=d_latent, epochs=100)
+    start = time.time()
+    z_vae = VAE.fit_transform(x)
+    end = time.time()
+    return z_vae, end-start
+
 def learn_IKD(x):
     start = time.time()
     if f == 'Gaussian bump':
@@ -118,20 +122,20 @@ elif args.method_idx == 2:
     method = 'LE'
     learn = learn_LE
 elif args.method_idx == 3:
-    method = 'LLE'
-    learn = learn_LLE
+    method = 'Isomap'
+    learn = learn_Isomap
 elif args.method_idx == 4:
     method = 'TSNE'
     learn = learn_TSNE
 elif args.method_idx == 5:
-    method = 'Isomap'
-    learn = learn_Isomap
-elif args.method_idx == 6:
     method = 'UMAP'
     learn = learn_UMAP
-elif args.method_idx == 7:
+elif args.method_idx == 6:
     method = 'GPLVM'
     learn = learn_GPLVM
+elif args.method_idx == 7:
+    method = 'VAE'
+    learn = learn_VAE
 elif args.method_idx == 8:
     method = 'IKD'
     learn = learn_IKD

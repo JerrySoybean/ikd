@@ -9,6 +9,8 @@ from scipy.spatial.distance import cdist
 from scipy.linalg import eigh
 from scipy.sparse.csgraph import shortest_path
 from scipy.sparse import csr_matrix
+from sklearn.neighbors import NearestNeighbors, kneighbors_graph
+import time
 
 
 def ikd(corr_samp_th: np.array, d_latent: int, kernel="squared exponential", variance=1, length_scale=1, extra_kernel_hyperparam=None, ref_point='min_max') -> tuple:
@@ -59,8 +61,10 @@ def ikd(corr_samp_th: np.array, d_latent: int, kernel="squared exponential", var
         eigenvalues, eigenvectors = eigh(k, subset_by_index=[n_points-d_latent, n_points-1])
     except:
         eigenvalues, eigenvectors = np.linalg.eigh(k)
-        eigenvalues, eigenvectors = eigenvectors[:, -d_latent:], eigenvalues[-d_latent:]
+        eigenvalues, eigenvectors = eigenvalues[-d_latent:], eigenvectors[:, -d_latent:]
     z_pred = eigenvectors * np.maximum(eigenvalues, 0)**0.5
+    if z_pred.shape[1] != d_latent:
+        z_pred = np.hstack((z_pred, np.zeros((n_points, d_latent - z_pred.shape[1]))))
     # z_pred[ref_point], z_pred[:, ref_point] = 0, 0 # for security
     return z_pred
 
@@ -507,8 +511,8 @@ def ikd_geodesic(x: np.array, d_latent: int, kernel="squared exponential", extra
             np.nan_to_num(corr_samp_th, copy=False, nan=1e-3)
             np.fill_diagonal(corr_samp_th, 1)
         a = -np.log(corr_samp_th)
-        a_new = np.zeros((n_points, n_points))
         np.fill_diagonal(a, 1e5)
+        a_new = np.zeros((n_points, n_points))
         for i in range(n_points):
             idx = np.argpartition(a[i], n_neighbors)[:n_neighbors]
             a_new[i, idx] = a[i, idx]
@@ -525,10 +529,10 @@ def ikd_geodesic(x: np.array, d_latent: int, kernel="squared exponential", extra
         sub_graph = sub_graph_list[i]
         corr_geodesic = np.exp(-d[sub_graph][:, sub_graph])
         z_list.append(ikd(corr_geodesic, d_latent, kernel=kernel, variance=1, length_scale=1, extra_kernel_hyperparam=extra_kernel_hyperparam, ref_point=ref_point))
-    
     if n_sub_graphs == 1:
         return z_list[0]
     else:
+        print('The whole graph is not connected, separate independent subgraphs (connected components) in a hard way.')
         n_graphs_per_axis = int(np.ceil(n_sub_graphs**(1/d_latent)))
         sub_graph_radius = np.zeros(n_sub_graphs)
         for i in range(n_sub_graphs):
