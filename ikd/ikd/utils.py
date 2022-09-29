@@ -177,29 +177,6 @@ def align(z_true: np.array, z_pred: np.array) -> np.array:
     return z_aligned
 
 
-def filt_cov_samp(cov_samp: np.array, variance=1, low=1e-3) -> np.array:
-    """Sample covariance matrix filter.
-
-    Parameters
-    ----------
-    cov_samp : ndarray of shape (n_points, n_points)
-        Sample covariance matrix.
-    variance : float, optional
-        Marginal variance, by default 1.
-
-    Returns
-    -------
-    cov_samp_th : ndarray of shape (n_points, n_points)
-        Filtered sample covariance matrix
-    """
-
-    cov_samp_th = cov_samp.copy()
-    cov_samp_th[cov_samp_th <= 0] = low # filter all negative covariance
-    cov_samp_th[cov_samp_th > variance] = variance - 1e-5 # filter all > variance covariance, new added filter !!!
-    np.fill_diagonal(cov_samp_th, variance)
-    return cov_samp_th
-
-
 def backward(x: np.array, method="sqrt") -> np.array:
     """Impute backward.
 
