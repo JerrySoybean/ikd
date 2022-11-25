@@ -32,6 +32,8 @@ def ikd(corr_samp_th: np.array, d_latent: int, kernel="squared exponential", var
         Length scale of the kernel, by default 1.
     extra_kernel_hyperparam : int, optional
         α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
+    ref_point : str, optional
+        ["min_max" | "min_mean" | "center"], by default "min_max".
 
     Returns
     -------
@@ -372,10 +374,12 @@ def ikd_blockwise(x: np.array, d_latent: int, kernel="squared exponential", extr
     extra_kernel_hyperparam : int, optional
         α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
     clique_th : float, optional
-        If it is None, then will use d_observation to determine clique threshold automatically. Otherwise, it is assumed to be a given clique threshold.
+        If it is None, then will use d_observation to determine the clique threshold automatically. Otherwise, it is assumed to be a given clique threshold.
     z_ref : ndarray of shape (n_points, d_latent), optional
-        A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is bad than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None.
-
+        A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is worse than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None.
+    ref_point : str, optional
+        ["min_max" | "min_mean" | "center"], by default "min_max".
+    
     Returns
     -------
     z_block : ndarray of shape (n_points, d_latent)
@@ -500,6 +504,32 @@ def grid_point(d_latent, side_length, n):
 
 
 def ikd_geodesic(x: np.array, d_latent: int, kernel="squared exponential", extra_kernel_hyperparam=None, n_neighbors=5, clique_th=None, ref_point='min_max'):
+    """Geodesic Inverse Kernel Decomposition.
+
+    Parameters
+    ----------
+    x : ndarray of shape (n_points, d_observation)
+        Observation matrix.
+    d_latent : int
+        Latent dimensionality.
+    kernel : str, optional
+        ["squared exponential" | "rational quadratic" | "gamma-exponential" | "matern"], by default "squared exponential".
+    extra_kernel_hyperparam : int, optional
+        α in rational quadratic kernel; γ in gamma-exponential kernel; ν in Matérn kernel, by default None.
+    n_neighbors : int, optional
+        The number of neighbors when computing pairwise geodesic distances, by default 5.
+    clique_th : float, optional
+        If it is None, then will use d_observation to determine the clique threshold automatically. Otherwise, it is assumed to be a given clique threshold.
+    z_ref : ndarray of shape (n_points, d_latent), optional
+        A reference latent estimations. If provided, when the rebuilt sample covariance matrix by the blockwise IKD is worse than that, then the merging is unstable, so we align each clique to the corresponding points in z_ref. by default None.
+    ref_point : str, optional
+        ["min_max" | "min_mean" | "center"], by default "min_max".
+    
+    Returns
+    -------
+    z_block : ndarray of shape (n_points, d_latent)
+        Estimated latents.
+    """
 
     n_points = x.shape[0]
     corr_samp = np.corrcoef(x)
