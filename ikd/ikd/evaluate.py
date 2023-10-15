@@ -25,7 +25,7 @@ def compare_latents(z_true: np.array, z_pred: np.array, name: str, measurement="
         plt.figure(figsize=(10, 4))
         plt.plot(z_true, label='true')
         plt.plot(z_pred, label=name)
-        plt.legend()
+        fig.legend()
         plt.xlabel('$n$ points')
         plt.ylabel('$z$')
     
@@ -41,12 +41,12 @@ def compare_latents(z_true: np.array, z_pred: np.array, name: str, measurement="
         plt.subplot(2, 2, 2)
         plt.plot(z_true[:, 0])
         plt.plot(z_pred[:, 0])
-        plt.xlabel('$z_1$')
+        plt.ylabel('$z_1$')
 
         plt.subplot(2, 2, 4)
         plt.plot(z_true[:, 1])
         plt.plot(z_pred[:, 1])
-        plt.xlabel('$z_2$')
+        plt.ylabel('$z_2$')
     
     elif d_latent == 3:
         fig = plt.figure(figsize=(10, 6))
@@ -61,17 +61,17 @@ def compare_latents(z_true: np.array, z_pred: np.array, name: str, measurement="
         plt.subplot(3, 2, 2)
         plt.plot(z_true[:, 0])
         plt.plot(z_pred[:, 0])
-        plt.xlabel('$z_1$')
+        plt.ylabel('$z_1$')
 
         plt.subplot(3, 2, 4)
         plt.plot(z_true[:, 1])
         plt.plot(z_pred[:, 1])
-        plt.xlabel('$z_2$')
+        plt.ylabel('$z_2$')
 
         plt.subplot(3, 2, 6)
         plt.plot(z_true[:, 2])
         plt.plot(z_pred[:, 2])
-        plt.xlabel('$z_3$')
+        plt.ylabel('$z_3$')
     
     else:
         fig = plt.figure(figsize=(6, d_latent*2))
@@ -82,9 +82,9 @@ def compare_latents(z_true: np.array, z_pred: np.array, name: str, measurement="
             plt.xlabel(f'$z_{i+1}$')
 
     if measurement == "r2":
-        plt.suptitle(f'{name}\n$R^2$ = {r2_score(z_true, z_pred):.4f}')
+        fig.suptitle(f'{name}\n$R^2$ = {r2_score(z_true, z_pred):.4f}')
     elif measurement == "mse":
-        plt.suptitle(f"{name}\nMSE = {mean_squared_error(z_true, z_pred):.4f}")
+        fig.suptitle(f"{name}\nMSE = {mean_squared_error(z_true, z_pred):.4f}")
     
     plt.tight_layout()
 
