@@ -25,7 +25,7 @@ def compare_latents(z_true: np.array, z_pred: np.array, name: str, measurement="
         plt.figure(figsize=(10, 4))
         plt.plot(z_true, label='true')
         plt.plot(z_pred, label=name)
-        fig.legend()
+        plt.legend()
         plt.xlabel('$n$ points')
         plt.ylabel('$z$')
     
@@ -82,9 +82,9 @@ def compare_latents(z_true: np.array, z_pred: np.array, name: str, measurement="
             plt.xlabel(f'$z_{i+1}$')
 
     if measurement == "r2":
-        fig.suptitle(f'{name}\n$R^2$ = {r2_score(z_true, z_pred):.4f}')
+        plt.suptitle(f'{name}\n$R^2$ = {r2_score(z_true, z_pred):.4f}')
     elif measurement == "mse":
-        fig.suptitle(f"{name}\nMSE = {mean_squared_error(z_true, z_pred):.4f}")
+        plt.suptitle(f"{name}\nMSE = {mean_squared_error(z_true, z_pred):.4f}")
     
     plt.tight_layout()
 
